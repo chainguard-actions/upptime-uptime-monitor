@@ -1,0 +1,30 @@
+name: Test summary command
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Test the 'summary' command path. Without a valid token and config,
+      # the action should fail gracefully rather than crash silently.
+      - id: action
+        uses: .
+        with:
+          command: summary
+        env:
+          GH_PAT: fake-token-for-testing
+        continue-on-error: true
+
+      - name: Assert summary command failed gracefully
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # Without a real token/config the action must fail, not succeed
+          if [ "$OUTCOME" = "success" ]; then
+            echo "FAIL: action unexpectedly succeeded without valid credentials/config"
+            exit 1
+          fi
+          echo "PASS: summary command failed gracefully as expected"

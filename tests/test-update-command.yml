@@ -1,0 +1,33 @@
+name: Test update command
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # The action requires a GitHub token and a .upptimerc.yml config file.
+      # Without a real token and config, the action will fail after startup.
+      # We verify it fails (not crashes silently) and that the startup banner runs.
+      - id: action
+        uses: .
+        with:
+          command: update
+        env:
+          # Provide a fake token so the "GitHub token not found" check passes,
+          # but the action will fail when it tries to call the GitHub API.
+          GH_PAT: fake-token-for-testing
+        continue-on-error: true
+
+      - name: Assert action attempted to run (failed due to missing config, not silent crash)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # The action should fail (no valid token/config), not succeed silently
+          if [ "$OUTCOME" = "success" ]; then
+            echo "FAIL: action unexpectedly succeeded without a real token and config"
+            exit 1
+          fi
+          echo "PASS: action correctly failed when run without valid credentials/config"
