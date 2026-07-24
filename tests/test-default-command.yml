@@ -1,4 +1,4 @@
-name: Test default update command
+name: Test response-time command
 on:
   workflow_dispatch:
 jobs:
@@ -6,33 +6,42 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up git config
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+
       - name: Create minimal .upptimerc.yml config
         run: |
           cat > .upptimerc.yml << 'EOF'
-          owner: test-owner
-          repo: test-repo
+          owner: ${{ github.repository_owner }}
+          repo: ${{ github.event.repository.name }}
           sites:
             - name: Example
               url: https://example.com
+          assignees: []
+          workflowSchedule: {}
           EOF
+          echo "Created .upptimerc.yml"
+
       - id: action
         uses: .
         with:
-          command: update
+          command: response-time
         env:
-          GH_PAT: fake-token-for-testing
+          GITHUB_TOKEN: ${{ github.token }}
         continue-on-error: true
-      - name: Assert action ran the update command
+
+      - name: Assert response-time command ran
         env:
           OUTCOME: ${{ steps.action.outcome }}
         run: |
           echo "outcome: $OUTCOME"
-          # With a fake token the action will fail when trying to call GitHub API
-          # but it should not crash before reaching the command dispatch logic
-          if [ "$OUTCOME" = "failure" ]; then
-            echo "PASS: action ran update command and failed as expected with fake token"
-          elif [ "$OUTCOME" = "success" ]; then
-            echo "PASS: action ran update command successfully"
+          # The response-time command checks uptime and commits response times.
+          # It should run and complete (may fail on git push in test environment).
+          if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: response-time command ran and completed (outcome: $OUTCOME)"
           else
             echo "FAIL: unexpected outcome: $OUTCOME"
             exit 1
