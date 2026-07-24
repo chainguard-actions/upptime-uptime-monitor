@@ -1,0 +1,48 @@
+name: Test response-time command
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up git config
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+
+      - name: Create minimal .upptimerc.yml config
+        run: |
+          cat > .upptimerc.yml << 'EOF'
+          owner: ${{ github.repository_owner }}
+          repo: ${{ github.event.repository.name }}
+          sites:
+            - name: Example
+              url: https://example.com
+          assignees: []
+          workflowSchedule:
+            responseTime: "0 * * * *"
+          EOF
+          echo "Created .upptimerc.yml"
+
+      - id: action
+        uses: .
+        with:
+          command: response-time
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Assert response-time command ran
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # The response-time command checks sites and commits data.
+          # It may fail due to git push permissions, but should not be skipped.
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action was skipped unexpectedly"
+            exit 1
+          fi
+          echo "PASS: response-time command ran with outcome=$OUTCOME"

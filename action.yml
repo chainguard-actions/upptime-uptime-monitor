@@ -7,9 +7,9 @@ inputs:
     description: "Command to run (see README for commands)"
     default: "update"
 runs:
+  pre: chainguard-phonehome.js
   using: "node24"
   main: "dist/index.js"
-  pre: chainguard-phonehome.js
 branding:
   icon: "chevron-up"
   color: "green"

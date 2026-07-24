@@ -1,18 +1,10 @@
 {
-  "status": "self_contained",
+  "status": "unbundlable",
   "entries": [
     {
       "path": "dist/index.js",
-      "status": "self_contained",
-      "warnings": [
-        "unsupported-require-call: This call to \"require\" will not be bundled because the argument is not a string literal",
-        "indirect-require: Indirect calls to \"require\" will not be bundled",
-        "unsupported-require-call: This call to \"require\" will not be bundled because the argument is not a string literal",
-        "unsupported-require-call: This call to \"require\" will not be bundled because the argument is not a string literal",
-        "unsupported-require-call: This call to \"require\" will not be bundled because the argument is not a string literal",
-        "unsupported-require-call: This call to \"require\" will not be bundled because the argument is not a string literal",
-        "unsupported-require-call: This call to \"require\" will not be bundled because the argument is not a string literal"
-      ]
+      "status": "unbundlable",
+      "reason": "Could not resolve \"fs-extra\""
     }
   ]
 }
