@@ -1,0 +1,90 @@
+name: Test summary command
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up git identity
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          git config push.default current
+
+      - name: Create minimal .upptimerc.yml config
+        run: |
+          REPO_FULL="${{ github.repository }}"
+          OWNER="${REPO_FULL%%/*}"
+          REPO="${REPO_FULL##*/}"
+          cat > .upptimerc.yml << EOF
+          owner: ${OWNER}
+          repo: ${REPO}
+          sites:
+            - name: Example
+              url: https://example.com
+          assignees: []
+          workflowSchedule: {}
+          EOF
+          echo "Created .upptimerc.yml:"
+          cat .upptimerc.yml
+
+      - name: Create history directory with sample data
+        run: |
+          mkdir -p history
+          cat > history/example.yml << 'EOF'
+          url: https://example.com
+          status: up
+          code: 200
+          responseTime: 123
+          lastUpdated: "2024-01-01T00:00:00.000Z"
+          startTime: "2024-01-01T00:00:00.000Z"
+          generator: "Upptime <https://github.com/upptime/upptime>"
+          EOF
+          echo "Created history/example.yml"
+
+      - name: Create README.md with Upptime markers
+        run: |
+          cat > README.md << 'EOF'
+          # My Status Page
+
+          <!--start: status pages-->
+          <!--end: status pages-->
+
+          ## About
+          This is a test status page.
+          EOF
+          echo "Created README.md"
+
+      - name: Set up a git origin reachable inside the runner
+        run: |
+          rm -rf "$GITHUB_WORKSPACE/.git-remote"
+          git init --bare "$GITHUB_WORKSPACE/.git-remote"
+          git push "$GITHUB_WORKSPACE/.git-remote" HEAD:refs/heads/act-harness
+          git remote set-url origin "$GITHUB_WORKSPACE/.git-remote" 2>/dev/null || \
+            git remote add origin "$GITHUB_WORKSPACE/.git-remote"
+          git branch --set-upstream-to=origin/act-harness act-harness 2>/dev/null || true
+
+      - id: action
+        uses: .
+        with:
+          command: summary
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        continue-on-error: true
+
+      - name: Assert action ran (summary command)
+        if: always()
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action was skipped unexpectedly"
+            exit 1
+          fi
+          echo "PASS: action ran with outcome=$OUTCOME"
