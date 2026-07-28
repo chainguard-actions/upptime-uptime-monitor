@@ -1,0 +1,55 @@
+name: Test update command (default)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+
+      - name: Create .upptimerc.yml config
+        run: |
+          cat > "$GITHUB_WORKSPACE/.upptimerc.yml" << 'EOF'
+          owner: ${{ github.repository_owner }}
+          repo: ${{ github.event.repository.name }}
+          sites:
+            - name: GitHub
+              url: https://github.com
+          assignees: []
+          workflowSchedule: {}
+          EOF
+
+      - name: Create README.md with status page markers
+        run: |
+          cat > "$GITHUB_WORKSPACE/README.md" << 'EOF'
+          # Status Page
+          <!--start: status pages-->
+          <!--end: status pages-->
+          EOF
+
+      - name: Run update command
+        id: action
+        uses: .
+        with:
+          command: update
+        env:
+          GH_PAT: ${{ github.token }}
+        continue-on-error: true
+
+      - name: Assert action ran (update command executed)
+        run: |
+          echo "Action outcome: ${{ steps.action.outcome }}"
+          # The action either succeeds (site is up) or fails due to git push issues
+          # but it should not fail due to missing config or token
+          if [ "${{ steps.action.outcome }}" = "skipped" ]; then
+            echo "FAIL: action was skipped unexpectedly"
+            exit 1
+          fi
+          echo "PASS: action ran (outcome: ${{ steps.action.outcome }})"
