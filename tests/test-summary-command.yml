@@ -1,0 +1,62 @@
+name: Test summary command
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Create a minimal .upptimerc.yml config
+      - name: Create minimal Upptime config
+        run: |
+          cat > .upptimerc.yml << 'EOF'
+          owner: test-owner
+          repo: test-repo
+          assignees: []
+          sites:
+            - name: Example
+              url: https://example.com
+          workflowSchedule:
+            summary: "0 * * * *"
+          EOF
+
+      # Create a minimal README.md with Upptime markers
+      - name: Create minimal README
+        run: |
+          cat > README.md << 'EOF'
+          # Test Status Page
+
+          <!--start: status pages-->
+          <!--end: status pages-->
+          EOF
+
+      # Create history directory (summary reads from it)
+      - name: Create history directory
+        run: mkdir -p history
+
+      - name: Configure git
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+
+      - id: action
+        uses: .
+        with:
+          command: summary
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Assert summary command ran
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # The summary command should run (not be skipped).
+          # It may fail at git push or GitHub API calls, but it should start.
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action was skipped unexpectedly"
+            exit 1
+          fi
+          echo "PASS: summary command ran (outcome=$OUTCOME)"

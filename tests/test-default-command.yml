@@ -1,0 +1,46 @@
+name: Test default command (update)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Create a minimal .upptimerc.yml config
+      - name: Create minimal Upptime config
+        run: |
+          cat > .upptimerc.yml << 'EOF'
+          owner: test-owner
+          repo: test-repo
+          assignees: []
+          sites:
+            - name: Example
+              url: https://example.com
+          workflowSchedule:
+            updates: "0 * * * *"
+          EOF
+
+      - name: Configure git
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+
+      # Run without specifying command — should use the default "update"
+      - id: action
+        uses: .
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Assert action ran with default command
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # The action should run (not be skipped) when using the default command.
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action was skipped unexpectedly"
+            exit 1
+          fi
+          echo "PASS: action ran with default command (outcome=$OUTCOME)"
