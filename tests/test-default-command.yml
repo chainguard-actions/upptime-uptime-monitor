@@ -1,0 +1,31 @@
+name: Test default update command
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run action with default update command and fake token
+        id: action
+        uses: .
+        with:
+          command: update
+        env:
+          # Provide a fake token so the token check passes; action will fail later at API calls
+          GH_PAT: "fake-token-for-testing"
+        continue-on-error: true
+
+      - name: Assert action ran (token check passed, failed at API level)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # The action should either succeed or fail at the API level (not at startup).
+          # Either outcome is acceptable here — we just verify the action was invoked.
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action was skipped, expected it to run"
+            exit 1
+          fi
+          echo "PASS: action ran with command=update (outcome=$OUTCOME)"

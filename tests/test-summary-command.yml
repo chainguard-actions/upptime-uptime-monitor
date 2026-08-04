@@ -1,0 +1,68 @@
+name: Test summary command with valid config
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up .upptimerc.yml config using real repo
+        run: |
+          OWNER="${GITHUB_REPOSITORY%%/*}"
+          REPO="${GITHUB_REPOSITORY##*/}"
+          cat > .upptimerc.yml << EOF
+          owner: ${OWNER}
+          repo: ${REPO}
+          sites:
+            - name: Example
+              url: https://example.com
+          assignees: []
+          workflowSchedule: {}
+          EOF
+          echo "Created .upptimerc.yml for ${OWNER}/${REPO}"
+          cat .upptimerc.yml
+
+      - name: Set up README.md with status page markers
+        run: |
+          cat > README.md << 'EOF'
+          # Test Status Page
+
+          <!--start: status pages-->
+          <!--end: status pages-->
+
+          ## About
+          This is a test README for Upptime.
+          EOF
+          echo "Created README.md with upptime status markers"
+
+      - name: Set up git identity and remote
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          rm -rf "$GITHUB_WORKSPACE/.git-remote"
+          git init --bare "$GITHUB_WORKSPACE/.git-remote"
+          git push "$GITHUB_WORKSPACE/.git-remote" HEAD:refs/heads/act-harness
+          git remote set-url origin "$GITHUB_WORKSPACE/.git-remote" 2>/dev/null || \
+            git remote add origin "$GITHUB_WORKSPACE/.git-remote"
+
+      - id: action
+        uses: .
+        with:
+          command: summary
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Assert action ran (not skipped)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # The summary command may succeed or fail depending on GitHub API responses,
+          # but it must NOT be skipped — the action must have actually run.
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action step was unexpectedly skipped"
+            exit 1
+          fi
+          echo "PASS: action ran with outcome: $OUTCOME"

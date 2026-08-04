@@ -1,0 +1,7 @@
+owner: test-owner
+repo: test-repo
+sites:
+  - name: Example
+    url: https://example.com
+assignees: []
+workflowSchedule: {}
