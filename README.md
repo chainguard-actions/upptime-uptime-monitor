@@ -8,6 +8,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 
 | Version | Tag | Upstream commit |
 |---------|-----|-----------------|
+| v1.42.4 | [`v1.42.4`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.42.4) | [`689dba1`](https://github.com/upptime/uptime-monitor/commit/689dba18f5dc825144c28f492847f9644cb05d3f) |
 | v1.42.5 | [`v1.42.5`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.42.5) | [`1ee67da`](https://github.com/upptime/uptime-monitor/commit/1ee67da0e46844c43a496afde156bad5baec401e) |
 | v1.43.10 | [`v1.43.10`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.10) | [`7d817ff`](https://github.com/upptime/uptime-monitor/commit/7d817ff35938c9c706acb7c86ed8d52e22cae2b7) |
 | v1.43.11 | [`v1.43.11`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.11) | [`c540f23`](https://github.com/upptime/uptime-monitor/commit/c540f23fc12982bc1df4624aa428b818f2020bdd) |
