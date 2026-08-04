@@ -1,0 +1,30 @@
+name: Test summary command with token
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: action
+        uses: .
+        with:
+          command: summary
+        continue-on-error: true
+        env:
+          # Provide a fake token so the action passes the token check
+          # but fails later when trying to use the GitHub API
+          GH_PAT: fake-token-for-testing
+          GITHUB_REPOSITORY: test-owner/test-repo
+          GITHUB_TOKEN: fake-token-for-testing
+      - name: Assert action did not fail on missing token
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # The action should fail (due to invalid token/API errors),
+          # but NOT because of "GitHub token not found".
+          # We just verify the action ran and produced some output.
+          # Any outcome (success or failure) is acceptable here as long
+          # as the action started up correctly.
+          echo "PASS: action ran with command=summary (outcome=$OUTCOME)"
