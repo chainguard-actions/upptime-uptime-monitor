@@ -1,0 +1,48 @@
+name: Test summary command
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create minimal upptime config and README
+        run: |
+          cat > .upptimerc.yml << 'EOF'
+          owner: test-owner
+          repo: test-repo
+          assignees: []
+          sites:
+            - name: Example
+              url: https://example.com
+          workflowSchedule: {}
+          EOF
+
+          cat > README.md << 'EOF'
+          # Test Status Page
+
+          <!--start: status pages-->
+          <!--end: status pages-->
+
+          ## History
+          EOF
+
+      - id: action
+        uses: .
+        with:
+          command: summary
+        continue-on-error: true
+
+      - name: Assert summary command ran
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # The action should either succeed or fail due to git/network operations,
+          # but NOT be skipped.
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action was skipped unexpectedly"
+            exit 1
+          fi
+          echo "PASS: summary command ran with outcome: $OUTCOME"

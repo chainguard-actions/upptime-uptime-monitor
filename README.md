@@ -1,20 +1,57 @@
-# upptime/uptime-monitor
+# ⬆️📈 Upptime Uptime Monitor
 
-Uptime monitor and status page powered entirely by GitHub
+This repository contains Upptime's GitHub Action's source code.
 
-Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at [https://github.com/upptime/uptime-monitor](https://github.com/upptime/uptime-monitor).
+[**To get started, visit upptime/upptime →**](https://github.com/upptime/upptime)
 
-## Versions
+[![Build CI](https://github.com/upptime/uptime-monitor/workflows/Build%20CI/badge.svg)](https://github.com/upptime/uptime-monitor/actions?query=workflow%3A%22Build+CI%22)
+[![Release CI](https://github.com/upptime/uptime-monitor/workflows/Release%20CI/badge.svg)](https://github.com/upptime/uptime-monitor/actions?query=workflow%3A%22Release+CI%22)
 
-| Version | Tag | Upstream commit |
-|---------|-----|-----------------|
-| v1.42.5 | [`v1.42.5`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.42.5) | [`1ee67da`](https://github.com/upptime/uptime-monitor/commit/1ee67da0e46844c43a496afde156bad5baec401e) |
-| v1.43.10 | [`v1.43.10`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.10) | [`7d817ff`](https://github.com/upptime/uptime-monitor/commit/7d817ff35938c9c706acb7c86ed8d52e22cae2b7) |
-| v1.43.11 | [`v1.43.11`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.11) | [`c540f23`](https://github.com/upptime/uptime-monitor/commit/c540f23fc12982bc1df4624aa428b818f2020bdd) |
-| v1.43.12 | [`v1.43.12`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.12) | [`6e7c186`](https://github.com/upptime/uptime-monitor/commit/6e7c186f842ae4040cf75956a00548426a1e42aa) |
-| v1.43.13 | [`v1.43.13`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.13) | [`4fec882`](https://github.com/upptime/uptime-monitor/commit/4fec88256b5917a2ed07a088df6e205869b424d6) |
-| v1.43.3 | [`v1.43.3`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.3) | [`e9a818d`](https://github.com/upptime/uptime-monitor/commit/e9a818d8e5c4285d0f8b28e78afbaac7b7dd36fa) |
-| v1.43.7 | [`v1.43.7`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.7) | [`84b1dd9`](https://github.com/upptime/uptime-monitor/commit/84b1dd9346adc6e6a02bdddf0e3bfc7274013ece) |
+## 🎁 Contributing
+
+This repository is for Upptime's GitHub Action. We love contributions, so please read our [Contributing Guidelines](https://github.com/upptime/.github/blob/main/CONTRIBUTING.md) and [Code of Conduct](https://github.com/upptime/.github/blob/main/CODE_OF_CONDUCT.md) and open an issue or make a pull request!
+
+### Issues
+
+We use the [upptime/upptime](https://github.com/upptime/upptime) repository for issues for all projects, including this one. If you found a bug or have a feature request, [open an issue](https://github.com/upptime/upptime/issues) in the Upptime repository and add the label "action".
+
+## 💻 Usage
+
+When you use Upptime, we automatically add the required workflows. If you want to manually use this package, you can use `npx`:
+
+Generate the `README.md` summary file:
+
+```bash
+npx @upptime/uptime-monitor summary
+```
+
+Make network requests to get the response time and commit them to git history:
+
+```bash
+npx @upptime/uptime-monitor response-time
+```
+
+Generate the static status website, powered by [upptime/status-page](https://github.com/upptime/status-page):
+
+```bash
+npx @upptime/uptime-monitor site
+```
+
+Generate response time graphs, powered by [upptime/graphs](https://github.com/upptime/graphs):
+
+```bash
+npx @upptime/uptime-monitor graphs
+```
+
+Check uptime, but don't make git commits with network requests:
+
+```bash
+npx @upptime/uptime-monitor
+```
+
+## 📄 License
+
+[MIT](./LICENSE) © [Anand Chowdhary](https://anandchowdhary.com)
 
 ## Privacy
 
