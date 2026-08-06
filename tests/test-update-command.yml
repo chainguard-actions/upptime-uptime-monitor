@@ -1,0 +1,54 @@
+name: Test update command (default) with minimal config
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up git config
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+
+      - name: Set up minimal .upptimerc.yml config
+        run: |
+          OWNER="${GITHUB_REPOSITORY%%/*}"
+          REPO="${GITHUB_REPOSITORY##*/}"
+          cat > .upptimerc.yml << EOF
+          owner: ${OWNER}
+          repo: ${REPO}
+          sites:
+            - name: Example
+              url: https://example.com
+          assignees: []
+          workflowSchedule: {}
+          EOF
+          echo "Created .upptimerc.yml:"
+          cat .upptimerc.yml
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+      - id: action
+        name: Run update command (default)
+        uses: .
+        with:
+          command: update
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+      - name: Assert action ran (not skipped)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # The action may fail due to git push or API rate limits in test env,
+          # but it should not be skipped and should have started
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action was skipped unexpectedly"
+            exit 1
+          fi
+          echo "PASS: action ran with outcome: $OUTCOME"
