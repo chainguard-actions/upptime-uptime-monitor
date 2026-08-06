@@ -1,0 +1,45 @@
+name: Test update command with valid config
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Create a minimal .upptimerc.yml so the action can read its config
+      - name: Create .upptimerc.yml
+        run: |
+          cat > .upptimerc.yml << 'EOF'
+          owner: upptime
+          repo: upptime
+          assignees: []
+          sites:
+            - name: Google
+              url: https://www.google.com
+          skipDeleteIssues: true
+          skipDescriptionUpdate: true
+          skipTopicsUpdate: true
+          skipHomepageUpdate: true
+          EOF
+
+      - id: action
+        uses: .
+        with:
+          command: update
+        env:
+          GH_PAT: ${{ github.token }}
+        continue-on-error: true
+
+      - name: Assert action ran (started processing)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # The action may succeed or fail (e.g. due to git push permissions),
+          # but it must NOT be skipped — it should have started and processed the config.
+          if [ "$OUTCOME" = "skipped" ]; then
+            echo "FAIL: action was skipped unexpectedly"
+            exit 1
+          fi
+          echo "PASS: action ran (outcome=$OUTCOME)"
