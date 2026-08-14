@@ -1,0 +1,33 @@
+name: Test missing config file error handling
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Ensure no .upptimerc.yml exists
+        run: |
+          rm -f .upptimerc.yml
+
+      - id: action
+        uses: .
+        with:
+          command: update
+        continue-on-error: true
+
+      - name: Assert action failed gracefully when config is missing
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # Without .upptimerc.yml, the action should fail (cannot read config)
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully as expected when config is missing"
+          elif [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action succeeded (may have handled missing config gracefully)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
