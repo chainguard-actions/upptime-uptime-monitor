@@ -19,6 +19,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 | v1.43.12 | [`v1.43.12`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.12) | [`6e7c186`](https://github.com/upptime/uptime-monitor/commit/6e7c186f842ae4040cf75956a00548426a1e42aa) |
 | v1.43.13 | [`v1.43.13`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.13) | [`4fec882`](https://github.com/upptime/uptime-monitor/commit/4fec88256b5917a2ed07a088df6e205869b424d6) |
 | v1.43.14 | [`v1.43.14`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.14) | [`8575473`](https://github.com/upptime/uptime-monitor/commit/8575473b4713da59d62f8d0f7cb5e4dfb86d55b7) |
+| v1.43.15 | [`v1.43.15`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.15) | [`2eb5d99`](https://github.com/upptime/uptime-monitor/commit/2eb5d99848b4be6e474f26112cf29e5cd5ab313c) |
 | v1.43.3 | [`v1.43.3`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.3) | [`e9a818d`](https://github.com/upptime/uptime-monitor/commit/e9a818d8e5c4285d0f8b28e78afbaac7b7dd36fa) |
 | v1.43.7 | [`v1.43.7`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.7) | [`84b1dd9`](https://github.com/upptime/uptime-monitor/commit/84b1dd9346adc6e6a02bdddf0e3bfc7274013ece) |
 
