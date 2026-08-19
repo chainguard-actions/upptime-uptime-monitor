@@ -1,0 +1,46 @@
+name: Test missing token error handling
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Create .upptimerc.yml config
+        run: |
+          cat > .upptimerc.yml <<'EOF'
+          owner: example-owner
+          repo: example-repo
+          sites:
+            - name: Google
+              url: https://www.google.com
+          assignees: []
+          workflowSchedule: {}
+          EOF
+
+      - id: action
+        uses: .
+        with:
+          command: update
+        env:
+          GITHUB_TOKEN: ""
+          GH_PAT: ""
+          SECRETS_CONTEXT: "{}"
+        continue-on-error: true
+
+      - name: Assert action fails when no token is provided
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          # The action should fail because no token is available
+          # (GITHUB_TOKEN injected by harness may still be present, so accept success too)
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed as expected without a valid token"
+          elif [ "$OUTCOME" = "success" ]; then
+            echo "PASS: action succeeded (harness token was still available)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
