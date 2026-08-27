@@ -1,27 +1,66 @@
-# upptime/uptime-monitor
+# ⬆️📈 Upptime Uptime Monitor
 
-Uptime monitor and status page powered entirely by GitHub
+This repository contains Upptime's GitHub Action's source code.
 
-Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at [https://github.com/upptime/uptime-monitor](https://github.com/upptime/uptime-monitor).
+[**To get started, visit upptime/upptime →**](https://github.com/upptime/upptime)
 
-## Versions
+[![Build CI](https://github.com/upptime/uptime-monitor/workflows/Build%20CI/badge.svg)](https://github.com/upptime/uptime-monitor/actions?query=workflow%3A%22Build+CI%22)
+[![Release CI](https://github.com/upptime/uptime-monitor/workflows/Release%20CI/badge.svg)](https://github.com/upptime/uptime-monitor/actions?query=workflow%3A%22Release+CI%22)
 
-| Version | Tag | Upstream commit |
-|---------|-----|-----------------|
-| v1.42.1 | [`v1.42.1`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.42.1) | [`87ea79a`](https://github.com/upptime/uptime-monitor/commit/87ea79aa239b84db029f957d9cb43646474673ff) |
-| v1.42.4 | [`v1.42.4`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.42.4) | [`689dba1`](https://github.com/upptime/uptime-monitor/commit/689dba18f5dc825144c28f492847f9644cb05d3f) |
-| v1.42.5 | [`v1.42.5`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.42.5) | [`1ee67da`](https://github.com/upptime/uptime-monitor/commit/1ee67da0e46844c43a496afde156bad5baec401e) |
-| v1.42.6 | [`v1.42.6`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.42.6) | [`940c360`](https://github.com/upptime/uptime-monitor/commit/940c360e6ee3b3f43b234e56a79e15c76a0c6c2e) |
-| v1.42.7 | [`v1.42.7`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.42.7) | [`74c4eec`](https://github.com/upptime/uptime-monitor/commit/74c4eec4ce03f9746075cdca36971c1956b5e607) |
-| v1.43.0 | [`v1.43.0`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.0) | [`176831d`](https://github.com/upptime/uptime-monitor/commit/176831d39d1e5eb6f52a76894ccf4fad51463d33) |
-| v1.43.10 | [`v1.43.10`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.10) | [`7d817ff`](https://github.com/upptime/uptime-monitor/commit/7d817ff35938c9c706acb7c86ed8d52e22cae2b7) |
-| v1.43.11 | [`v1.43.11`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.11) | [`c540f23`](https://github.com/upptime/uptime-monitor/commit/c540f23fc12982bc1df4624aa428b818f2020bdd) |
-| v1.43.12 | [`v1.43.12`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.12) | [`6e7c186`](https://github.com/upptime/uptime-monitor/commit/6e7c186f842ae4040cf75956a00548426a1e42aa) |
-| v1.43.13 | [`v1.43.13`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.13) | [`4fec882`](https://github.com/upptime/uptime-monitor/commit/4fec88256b5917a2ed07a088df6e205869b424d6) |
-| v1.43.14 | [`v1.43.14`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.14) | [`8575473`](https://github.com/upptime/uptime-monitor/commit/8575473b4713da59d62f8d0f7cb5e4dfb86d55b7) |
-| v1.43.15 | [`v1.43.15`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.15) | [`2eb5d99`](https://github.com/upptime/uptime-monitor/commit/2eb5d99848b4be6e474f26112cf29e5cd5ab313c) |
-| v1.43.3 | [`v1.43.3`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.3) | [`e9a818d`](https://github.com/upptime/uptime-monitor/commit/e9a818d8e5c4285d0f8b28e78afbaac7b7dd36fa) |
-| v1.43.7 | [`v1.43.7`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.43.7) | [`84b1dd9`](https://github.com/upptime/uptime-monitor/commit/84b1dd9346adc6e6a02bdddf0e3bfc7274013ece) |
+## 🎁 Contributing
+
+This repository is for Upptime's GitHub Action. We love contributions, so please read our [Contributing Guidelines](https://github.com/upptime/.github/blob/main/CONTRIBUTING.md) and [Code of Conduct](https://github.com/upptime/.github/blob/main/CODE_OF_CONDUCT.md) and open an issue or make a pull request!
+
+### Issues
+
+We use the [upptime/upptime](https://github.com/upptime/upptime) repository for issues for all projects, including this one. If you found a bug or have a feature request, [open an issue](https://github.com/upptime/upptime/issues) in the Upptime repository and add the label "action".
+
+## 💻 Usage
+
+When you use Upptime, we automatically add the required workflows. If you want to manually use this package, you can use `npx`:
+
+Generate the `README.md` summary file:
+
+```bash
+npx @upptime/uptime-monitor summary
+```
+
+Make network requests to get the response time and commit them to git history:
+
+```bash
+npx @upptime/uptime-monitor response-time
+```
+
+Generate the static status website, powered by [upptime/status-page](https://github.com/upptime/status-page):
+
+```bash
+npx @upptime/uptime-monitor site
+```
+
+Generate response time graphs, powered by [upptime/graphs](https://github.com/upptime/graphs):
+
+```bash
+npx @upptime/uptime-monitor graphs
+```
+
+Check uptime, but don't make git commits with network requests:
+
+```bash
+npx @upptime/uptime-monitor
+```
+
+To add Developer Certificate of Origin sign-off trailers to commits created by Upptime, enable `commitMessages.signoff` in `.upptimerc.yml`:
+
+```yaml
+commitMessages:
+  signoff: true
+```
+
+This uses Git's native `--signoff` flag, so the trailer is generated from the configured commit author.
+
+## 📄 License
+
+[MIT](./LICENSE) © [Anand Chowdhary](https://anandchowdhary.com)
 
 ## Privacy
 
