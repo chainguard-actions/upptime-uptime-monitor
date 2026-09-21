@@ -1,0 +1,775 @@
+import dayjs from "dayjs";
+import dns from "dns";
+import { mkdirp, readFile, writeFile } from "fs-extra";
+import {
+  FinishedHttpTestResult,
+  FinishedPingTestResult,
+  Globalping,
+  HttpProtocol,
+  HttpRequestMethod,
+  IpVersion,
+} from "globalping";
+import { load } from "js-yaml";
+import { isIP, isIPv6 } from "net";
+import { join } from "path";
+import WebSocket from "ws";
+import { getConfig } from "./helpers/config";
+import { replaceEnvironmentVariables } from "./helpers/environment";
+import { commit, lastCommit, push } from "./helpers/git";
+import { getOctokit, retryTransientGitHubRequest } from "./helpers/github";
+import { shouldContinue } from "./helpers/init-check";
+import { sendNotification } from "./helpers/notifme";
+import { ping } from "./helpers/ping";
+import { curl } from "./helpers/request";
+import { getOwnerRepo, getSecret } from "./helpers/secrets";
+import { getSiteSlug } from "./helpers/slug";
+import { SiteHistory, UpptimeConfig } from "./interfaces";
+import { checker } from "./ssl-date-checker";
+import { generateSummary } from "./summary";
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Get a human-readable time difference between from now
+ * @param startTime - Starting time
+ * @returns Human-readable time difference, e.g. "2 days, 3 hours, 5 minutes"
+ */
+function getHumanReadableTimeDifference(startTime: Date): string {
+  const diffDays = dayjs().diff(dayjs(startTime), "day");
+  const diffHours = dayjs().subtract(diffDays, "day").diff(dayjs(startTime), "hour");
+  const diffMinutes = dayjs()
+    .subtract(diffDays, "day")
+    .subtract(diffHours, "hour")
+    .diff(dayjs(startTime), "minute");
+  const result: string[] = [];
+  if (diffDays > 0) result.push(`${diffDays.toLocaleString()} ${diffDays > 1 ? "days" : "day"}`);
+  if (diffHours > 0)
+    result.push(`${diffHours.toLocaleString()} ${diffHours > 1 ? "hours" : "hour"}`);
+  if (diffMinutes > 0)
+    result.push(`${diffMinutes.toLocaleString()} ${diffMinutes > 1 ? "minutes" : "minute"}`);
+  return result.join(", ");
+}
+
+function sanitizeTcpPingResultForLog<T extends { address?: unknown; port?: unknown }>(tcpResult: T) {
+  const { address: _address, port: _port, ...safeResult } = tcpResult;
+  return safeResult;
+}
+
+function redactEnvironmentVariableReferences(value: string) {
+  return value.replace(/\$[A-Za-z_][A-Za-z0-9_]*/g, "[redacted]");
+}
+
+function getNotificationSiteUrl(site: UpptimeConfig["sites"][number]) {
+  return redactEnvironmentVariableReferences(site.url);
+}
+
+function getStatusFromHttpResult(
+  site: UpptimeConfig["sites"][number],
+  httpCode: number,
+  data: string,
+  responseTime: number
+) {
+  const expectedStatusCodes = (
+    site.expectedStatusCodes || [
+      200, 201, 202, 203, 200, 204, 205, 206, 207, 208, 226, 300, 301, 302, 303, 304, 305, 306, 307,
+      308,
+    ]
+  ).map(Number);
+  let status: "up" | "down" | "degraded" = expectedStatusCodes.includes(Number(httpCode))
+    ? "up"
+    : "down";
+  if (responseTime > (site.maxResponseTime || 60000)) status = "degraded";
+  if (status === "up" && typeof data === "string") {
+    if (
+      site.__dangerous__body_down &&
+      data.includes(replaceEnvironmentVariables(site.__dangerous__body_down))
+    )
+      status = "down";
+    if (
+      site.__dangerous__body_degraded &&
+      data.includes(replaceEnvironmentVariables(site.__dangerous__body_degraded))
+    )
+      status = "degraded";
+  }
+  if (
+    site.__dangerous__body_degraded_if_text_missing &&
+    !data.includes(replaceEnvironmentVariables(site.__dangerous__body_degraded_if_text_missing))
+  )
+    status = "degraded";
+  if (
+    site.__dangerous__body_down_if_text_missing &&
+    !data.includes(replaceEnvironmentVariables(site.__dangerous__body_down_if_text_missing))
+  )
+    status = "down";
+  return status;
+}
+
+function getStatusFromCertificateExpiresAt(expiresAt: string | undefined) {
+  if (!expiresAt) {
+    return "down";
+  }
+
+  const expires = new Date(expiresAt);
+  // if it expires 7+ days from now then it's OK
+  if (
+    !isNaN(expires.getTime()) &&
+    expires.toString() !== "Invalid Date" &&
+    expires.getTime() >= Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days in ms
+  ) {
+    return "up";
+  }
+  return "down";
+}
+
+const stringifyGlobalpingErrorData = (data: unknown) => {
+  if (typeof data === "string") return data;
+  if (data === undefined || data === null) return "no details returned";
+  try {
+    return JSON.stringify(data);
+  } catch {
+    return String(data);
+  }
+};
+
+const throwGlobalpingApiError = (
+  action: "create measurement" | "get measurement",
+  failure: { response?: { status?: number }; data?: unknown }
+): never => {
+  const status = failure.response?.status;
+  const statusText = status ? ` with HTTP ${status}` : "";
+  throw new Error(`Globalping ${action} failed${statusText}: ${stringifyGlobalpingErrorData(failure.data)}`);
+};
+
+export const update = async (shouldCommit = false) => {
+  if (!(await shouldContinue())) return;
+  await mkdirp("history");
+  const [owner, repo] = getOwnerRepo();
+
+  const config = await getConfig();
+  const octokit = await getOctokit();
+
+  let hasDelta = false;
+
+  const _ongoingMaintenanceEvents = await retryTransientGitHubRequest(() =>
+    octokit.issues.listForRepo({
+      owner,
+      repo,
+      state: "open",
+      filter: "all",
+      sort: "created",
+      direction: "desc",
+      labels: "maintenance",
+    })
+  );
+  console.log("Found ongoing maintenance events", _ongoingMaintenanceEvents.data.length);
+  const ongoingMaintenanceEvents: {
+    issueNumber: number;
+    metadata: { start: string; end: string; expectedDown: string[]; expectedDegraded: string[] };
+  }[] = [];
+  for await (const incident of _ongoingMaintenanceEvents.data) {
+    const metadata: Record<string, string> = {};
+    if (incident.body && incident.body.includes("<!--")) {
+      const summary = incident.body.split("<!--")[1].split("-->")[0];
+      const lines = summary
+        .split("\n")
+        .filter((i) => i.trim())
+        .filter((i) => i.includes(":"));
+      lines.forEach((i) => {
+        metadata[i.split(/:(.+)/)[0].trim()] = i.split(/:(.+)/)[1].trim();
+      });
+    }
+    if (metadata.start && metadata.end) {
+      let expectedDown: string[] = [];
+      let expectedDegraded: string[] = [];
+      if (metadata.expectedDown)
+        expectedDown = metadata.expectedDown
+          .split(",")
+          .map((i) => i.trim())
+          .filter((i) => i.length);
+      if (metadata.expectedDegraded)
+        expectedDegraded = metadata.expectedDegraded
+          .split(",")
+          .map((i) => i.trim())
+          .filter((i) => i.length);
+
+      if (dayjs(metadata.end).isBefore(dayjs())) {
+        await octokit.issues.unlock({
+          owner,
+          repo,
+          issue_number: incident.number,
+        });
+        await octokit.issues.update({
+          owner,
+          repo,
+          issue_number: incident.number,
+          state: "closed",
+        });
+        await octokit.issues.lock({
+          owner,
+          repo,
+          issue_number: incident.number,
+        });
+        console.log("Closed maintenance completed event", incident.number);
+      } else if (dayjs(metadata.start).isBefore(dayjs())) {
+        ongoingMaintenanceEvents.push({
+          issueNumber: incident.number,
+          metadata: { start: metadata.start, end: metadata.end, expectedDegraded, expectedDown },
+        });
+      }
+    }
+  }
+
+  for await (const site of config.sites) {
+    console.log("Checking", site.url);
+
+    if (config.delay) {
+      console.log(`Waiting for ${config.delay}ms`);
+      await delay(config.delay);
+    }
+
+    const slug = getSiteSlug(site);
+    const notificationSiteUrl = getNotificationSiteUrl(site);
+    let currentStatus = "unknown";
+    let startTime = new Date();
+    try {
+      const siteHistory = load(
+        (await readFile(join(".", "history", `${slug}.yml`), "utf8"))
+          .split("\n")
+          .map((line) => (line.startsWith("- ") ? line.replace("- ", "") : line))
+          .join("\n")
+      ) as SiteHistory;
+      currentStatus = siteHistory.status || "unknown";
+      startTime = new Date(siteHistory.startTime || new Date());
+    } catch (error) {}
+    console.log("Current status", slug, currentStatus, startTime);
+
+    /**
+     * Check whether the site is online
+     */
+    const performTestOnce = async (): Promise<{
+      result: {
+        httpCode: number;
+      };
+      responseTime: string;
+      status: "up" | "down" | "degraded";
+    }> => {
+      // globalping
+      if (site.type === "globalping") {
+        const client = new Globalping({
+          auth: getSecret("GLOBALPING_TOKEN"),
+          userAgent: "github.com/upptime/uptime-monitor",
+        });
+
+        let u = replaceEnvironmentVariables(site.url);
+        let url: URL;
+        try {
+          if (!u.startsWith("http://") && !u.startsWith("https://")) {
+            u = `https://${u}`;
+          }
+          url = new URL(u);
+        } catch (error) {
+          throw new Error(`invalid URL: ${site.url}`);
+        }
+
+        if (site.check === "ws") {
+          throw new Error(`ws is not supported with globalping: ${site.url}`);
+        } else if (site.check === "tcp-ping") {
+          const res = await client.createMeasurement({
+            type: "ping",
+            target: url.hostname,
+            inProgressUpdates: false,
+            limit: 1,
+            locations: [{ magic: site.location || "world" }],
+            ...(isIP(url.hostname)
+              ? {}
+              : {
+                  measurementOptions: {
+                    ipVersion: site.ipv6 ? IpVersion[6] : IpVersion[4],
+                  },
+                }),
+          });
+          if (res.ok) {
+            console.log("Fetching globalping measurement", res.data.id);
+            const measurement = await client.awaitMeasurement(res.data.id);
+            if (measurement.ok) {
+              const result = measurement.data.results[0].result;
+              if (result.status === "failed" || result.status === "offline") {
+                console.log("Globalping ping measurement failed:", result.status);
+                return { result: { httpCode: 0 }, responseTime: "0", status: "down" };
+              }
+              const finishedResult = result as FinishedPingTestResult;
+              const responseTime = finishedResult.stats.avg || 0;
+              let status: "up" | "down" | "degraded" = "up";
+              if (responseTime > (site.maxResponseTime || 60000)) {
+                status = "degraded";
+              }
+              return {
+                result: {
+                  httpCode: 200,
+                },
+                responseTime: responseTime.toFixed(0),
+                status,
+              };
+            } else {
+              console.log("ERROR: failed to get measurement:", measurement.data);
+              throwGlobalpingApiError("get measurement", measurement);
+            }
+          } else {
+            console.log("ERROR: failed to create measurement:", res.data);
+            throwGlobalpingApiError("create measurement", res);
+          }
+        } else {
+          const protocol = url.protocol === "http:" ? HttpProtocol.HTTP : HttpProtocol.HTTPS;
+          const res = await client.createMeasurement({
+            type: "http",
+            target: url.hostname,
+            inProgressUpdates: false,
+            limit: 1,
+            locations: [{ magic: site.location || "world" }],
+            measurementOptions: {
+              request: {
+                host: url.hostname,
+                path: url.pathname,
+                query: url.search ? url.search.slice(1) : undefined,
+                method: (site.method as HttpRequestMethod) || HttpRequestMethod.GET,
+                headers: site.headers?.reduce((m, h) => {
+                  const splitIndex = h.indexOf(":");
+                  m[h.substring(0, splitIndex)] = replaceEnvironmentVariables(
+                    h.substring(splitIndex + 1).trimStart()
+                  );
+                  return m;
+                }, {} as Record<string, string>),
+              },
+              port: site.port || parseInt(url.port) || undefined,
+              protocol: site.check === "ssl" ? HttpProtocol.HTTPS : protocol,
+              ipVersion: site.ipv6 ? IpVersion[6] : IpVersion[4],
+            },
+          });
+          if (res.ok) {
+            console.log("Fetching globalping measurement", res.data.id);
+            const measurement = await client.awaitMeasurement(res.data.id);
+            if (measurement.ok) {
+              const result = measurement.data.results[0].result;
+              if (result.status === "failed" || result.status === "offline") {
+                console.log("Globalping HTTP measurement failed:", result.status);
+                return { result: { httpCode: 0 }, responseTime: "0", status: "down" };
+              }
+              const finishedResult = result as FinishedHttpTestResult;
+              if (site.check === "ssl") {
+                return {
+                  result: { httpCode: 200 },
+                  responseTime: "0",
+                  status: getStatusFromCertificateExpiresAt(finishedResult.tls?.expiresAt),
+                };
+              }
+              const responseTime = finishedResult.timings.total || 0;
+              const status = getStatusFromHttpResult(
+                site,
+                finishedResult.statusCode,
+                finishedResult.rawBody || "",
+                responseTime
+              );
+              return {
+                result: {
+                  httpCode: finishedResult.statusCode,
+                },
+                responseTime: responseTime.toFixed(0),
+                status,
+              };
+            } else {
+              console.log("ERROR: failed to get measurement:", measurement.data);
+              throwGlobalpingApiError("get measurement", measurement);
+            }
+          } else {
+            console.log("ERROR: failed to create measurement:", res.data);
+            throwGlobalpingApiError("create measurement", res);
+          }
+        }
+      }
+
+      // local
+      if (site.check === "tcp-ping") {
+        console.log("Using tcp-ping instead of curl");
+        const maxRetries = site.maxRetries ?? 3;
+        let lastError: unknown = null;
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+            let status: "up" | "down" | "degraded" = "up";
+            // https://github.com/upptime/upptime/discussions/888
+            const url = replaceEnvironmentVariables(site.url);
+            let address = url;
+            if (isIP(url)) {
+              if (site.ipv6 && !isIPv6(url)) throw new Error("Site URL must be IPv6 for ipv6 check");
+            } else {
+              if (site.ipv6) address = (await dns.promises.resolve6(url))[0];
+              else address = (await dns.promises.resolve4(url))[0];
+
+              if (!isIP(address)) throw new Error("Site IP address could not be resolved");
+            }
+
+            const tcpResult = await ping({
+              address,
+              attempts: 5,
+              port: Number(replaceEnvironmentVariables(site.port ? String(site.port) : "")),
+            });
+
+            //
+            // NOTE: this was implemented in order to provide more insight into potential false positives
+            // <https://github.com/upptime/upptime/issues/1083>
+            //
+            const successfulResults = tcpResult.results.filter(
+              (result) => Object.prototype.toString.call((result as any).err) !== "[object Error]"
+            );
+
+            if (successfulResults.length === 0) {
+              // All 5 ping attempts failed — collect errors for diagnostics
+              const errors = tcpResult.results
+                .map((item) => item.err)
+                .filter((err) => Boolean(err));
+
+              if (errors.length === 0) {
+                throw Error("all attempts failed with no error details");
+              }
+
+              const combinedMessage = errors
+                .map((err) => err?.message)
+                .join("; ");
+
+              const aggregateError = new AggregateError(errors, combinedMessage);
+              console.error(`tcp-ping attempt ${attempt}/${maxRetries}: all pings failed:`, combinedMessage);
+              throw aggregateError;
+            }
+
+            // At least some pings succeeded
+            if (attempt > 1) {
+              console.log(`tcp-ping succeeded on attempt ${attempt}`);
+            }
+            console.log("Got result", sanitizeTcpPingResultForLog(tcpResult));
+            let responseTime = (tcpResult.avg || 0).toFixed(0);
+            if (parseInt(responseTime) > (site.maxResponseTime || 60000)) status = "degraded";
+            return {
+              result: { httpCode: 200 },
+              responseTime,
+              status,
+            };
+          } catch (error) {
+            lastError = error;
+            if (attempt < maxRetries) {
+              const delayMs = 1000 * Math.pow(2, attempt - 1);
+              console.log(`tcp-ping attempt ${attempt}/${maxRetries} failed, retrying in ${delayMs}ms...`);
+              await wait(delayMs);
+            }
+          }
+        }
+
+        // All retries exhausted
+        console.log("ERROR tcp-ping all attempts failed", lastError);
+        return { result: { httpCode: 0 }, responseTime: (0).toFixed(0), status: "down" };
+      } else if (site.check === "ws") {
+        console.log("Using websocket check instead of curl");
+        let success = false;
+        let status: "up" | "down" | "degraded" = "up";
+        let responseTime = "0";
+        //   promise to await:
+        const connect = () => {
+          return new Promise(function (resolve, reject) {
+            const ws = new WebSocket(replaceEnvironmentVariables(site.url));
+            ws.on("open", function open() {
+              if (site.body) {
+                ws.send(replaceEnvironmentVariables(site.body));
+              } else {
+                ws.send("");
+              }
+              ws.on("message", function message(data) {
+                if (data) {
+                  success = true;
+                }
+              });
+              ws.close();
+              ws.on("close", function close() {
+                console.log("Websocket disconnected");
+              });
+              resolve(ws);
+            });
+            ws.on("error", function error(error: any) {
+              reject(error);
+            });
+          });
+        };
+        try {
+          const connection = await connect();
+          if (connection) success = true;
+          if (success) {
+            status = "up";
+          } else {
+            status = "down";
+          }
+          return {
+            result: { httpCode: 200 },
+            responseTime,
+            status,
+          };
+        } catch (error) {
+          console.log("ERROR Got pinging error from async call", error);
+          return { result: { httpCode: 0 }, responseTime: (0).toFixed(0), status: "down" };
+        }
+      } else if (site.check === "ssl") {
+        console.log("Using ssl check instead of curl");
+        try {
+          const url = replaceEnvironmentVariables(site.url);
+          const port = Number(replaceEnvironmentVariables(site.port ? String(site.port) : "443"));
+          const dateInfo = await checker(url, port);
+          return {
+            result: { httpCode: 200 },
+            responseTime: "0",
+            status: getStatusFromCertificateExpiresAt(dateInfo.valid_to),
+          };
+        } catch (error) {
+          console.log("ERROR Got pinging error from async call", error);
+          return { result: { httpCode: 0 }, responseTime: (0).toFixed(0), status: "down" };
+        }
+      } else {
+        const result = await curl(site);
+        console.log("Result from test", result.httpCode, result.totalTime);
+        const responseTime = result.totalTime * 1000;
+        const status = getStatusFromHttpResult(site, result.httpCode, result.data, responseTime);
+        return { result, responseTime: responseTime.toFixed(0), status };
+      }
+    };
+
+    let { result, responseTime, status } = await performTestOnce();
+    /**
+     * If the site is down or degraded, we perform the test 2 more times
+     * to make sure that it's not a false alarm. Each retry waits
+     * progressively longer to allow transient issues to resolve.
+     *
+     * Bug fix: previously `wait()` was called without `await`, so the
+     * delays were never actually applied and retries fired immediately.
+     * See: https://github.com/upptime/upptime/issues/171
+     */
+    if (status === "down" || status === "degraded") {
+      console.log(`Site ${site.name} appears ${status} (HTTP ${result.httpCode}), retrying after 2s...`);
+      await wait(2000);
+      const secondTry = await performTestOnce();
+      if (secondTry.status === "up") {
+        console.log(`Site ${site.name} recovered on second attempt`);
+        result = secondTry.result;
+        responseTime = secondTry.responseTime;
+        status = secondTry.status;
+      } else {
+        console.log(`Site ${site.name} still ${secondTry.status} on second attempt (HTTP ${secondTry.result.httpCode}), retrying after 10s...`);
+        await wait(10000);
+        const thirdTry = await performTestOnce();
+        if (thirdTry.status === "up") {
+          console.log(`Site ${site.name} recovered on third attempt`);
+          result = thirdTry.result;
+          responseTime = thirdTry.responseTime;
+          status = thirdTry.status;
+        } else {
+          console.log(`Site ${site.name} confirmed ${thirdTry.status} after 3 attempts (HTTP ${thirdTry.result.httpCode})`);
+          // Use the last attempt's result as it's the most recent
+          result = thirdTry.result;
+          responseTime = thirdTry.responseTime;
+          status = thirdTry.status;
+        }
+      }
+    }
+
+    try {
+      if (shouldCommit || currentStatus !== status) {
+        await writeFile(
+          join(".", "history", `${slug}.yml`),
+          `url: ${site.url}
+status: ${status}
+code: ${result.httpCode}
+responseTime: ${responseTime}
+lastUpdated: ${new Date().toISOString()}
+startTime: ${startTime.toISOString()}
+generator: Upptime <https://github.com/upptime/upptime>
+`
+        );
+        const statusPrefix =
+          status === "up"
+            ? config.commitPrefixStatusUp || "🟩"
+            : status === "degraded"
+            ? config.commitPrefixStatusDegraded || "🟨"
+            : config.commitPrefixStatusDown || "🟥";
+        commit(
+          (
+            (config.commitMessages || {}).statusChange ||
+            "$PREFIX $SITE_NAME is $STATUS ($RESPONSE_CODE in $RESPONSE_TIME ms) [skip ci] [upptime]"
+          )
+            .replace(/\$PREFIX|\$EMOJI/g, statusPrefix)
+            .replace("$SITE_NAME", site.name)
+            .replace("$SITE_URL", site.url)
+            .replace("$SITE_METHOD", site.method || "GET")
+            .replace("$STATUS", status)
+            .replace("$RESPONSE_CODE", result.httpCode.toString())
+            .replace("$RESPONSE_TIME", responseTime),
+          (config.commitMessages || {}).commitAuthorName,
+          (config.commitMessages || {}).commitAuthorEmail,
+          (config.commitMessages || {}).signoff
+        );
+        const lastCommitSha = lastCommit();
+
+        if (currentStatus !== status) {
+          console.log("Status is different", currentStatus, "to", status);
+          hasDelta = true;
+
+          const issues = await octokit.issues.listForRepo({
+            owner,
+            repo,
+            labels: `status,${slug}`,
+            filter: "all",
+            state: "open",
+            sort: "created",
+            direction: "desc",
+            per_page: 1,
+          });
+          console.log(`Found ${issues.data.length} issues`);
+
+          // Don't create an issue if it's expected that the site is down or degraded
+          let expected = false;
+          if (
+            (status === "down" &&
+              ongoingMaintenanceEvents.find((i) => i.metadata.expectedDown.includes(slug))) ||
+            (status === "degraded" &&
+              ongoingMaintenanceEvents.find((i) => i.metadata.expectedDegraded.includes(slug)))
+          )
+            expected = true;
+
+          // If the site was just recorded as down or degraded, open an issue
+          if ((status === "down" || status === "degraded") && !expected) {
+            if (!issues.data.length) {
+              const newIssue = await octokit.issues.create({
+                owner,
+                repo,
+                title:
+                  status === "down"
+                    ? `🛑 ${site.name} is down`
+                    : `⚠️ ${site.name} has degraded performance`,
+                body: `In [\`${lastCommitSha.substr(
+                  0,
+                  7
+                )}\`](https://github.com/${owner}/${repo}/commit/${lastCommitSha}), ${site.name} (${
+                  site.url
+                }) ${status === "down" ? "was **down**" : "experienced **degraded performance**"}:
+- HTTP code: ${result.httpCode}
+- Response time: ${responseTime} ms
+`,
+                labels: ["status", slug, ...(site.tags || [])],
+              });
+              const assignees = [...(config.assignees || []), ...(site.assignees || [])];
+              await octokit.issues.addAssignees({
+                owner,
+                repo,
+                issue_number: newIssue.data.number,
+                assignees,
+              });
+              await octokit.issues.lock({
+                owner,
+                repo,
+                issue_number: newIssue.data.number,
+              });
+              console.log("Opened and locked a new issue");
+              try {
+                const downmsg = (await getSecret("NOTIFICATIONS_DOWN_MESSAGE"))
+                  ? (getSecret("NOTIFICATIONS_DOWN_MESSAGE") || "")
+                      .replace("$SITE_NAME", site.name)
+                      .replace("$SITE_URL", `(${notificationSiteUrl})`)
+                      .replace("$ISSUE_URL", `${newIssue.data.html_url}`)
+                      .replace("$RESPONSE_CODE", result.httpCode.toString())
+                  : `$EMOJI ${site.name} (${notificationSiteUrl}) is $STATUS : ${newIssue.data.html_url}`;
+
+                await sendNotification(
+                  status === "down"
+                    ? `${downmsg
+                        .replace("$STATUS", "**down**")
+                        .replace("$EMOJI", `${config.commitPrefixStatusDown || "🟥"}`)}`
+                    : `${downmsg
+                        .replace("$STATUS", "experiencing **degraded performance**")
+                        .replace("$EMOJI", `${config.commitPrefixStatusDegraded || "🟨"}`)}`
+                );
+              } catch (error) {
+                console.log(error);
+              }
+            } else {
+              console.log("An issue is already open for this");
+            }
+          } else if (issues.data.length) {
+            // If the site just came back up
+            await octokit.issues.unlock({
+              owner,
+              repo,
+              issue_number: issues.data[0].number,
+            });
+            await octokit.issues.createComment({
+              owner,
+              repo,
+              issue_number: issues.data[0].number,
+              body: `**Resolved:** ${site.name} ${
+                issues.data[0].title.includes("degraded")
+                  ? "performance has improved"
+                  : "is back up"
+              } in [\`${lastCommitSha.substr(
+                0,
+                7
+              )}\`](https://github.com/${owner}/${repo}/commit/${lastCommitSha}) after ${getHumanReadableTimeDifference(
+                new Date(issues.data[0].created_at)
+              )}.`,
+            });
+            console.log("Created comment in issue");
+            await octokit.issues.update({
+              owner,
+              repo,
+              issue_number: issues.data[0].number,
+              state: "closed",
+            });
+            await octokit.issues.lock({
+              owner,
+              repo,
+              issue_number: issues.data[0].number,
+            });
+            console.log("Closed issue");
+            try {
+              const upmsg = (await getSecret("NOTIFICATIONS_UP_MESSAGE"))
+                ? (getSecret("NOTIFICATIONS_UP_MESSAGE") || "")
+                    .replace("$SITE_NAME", site.name)
+                    .replace("$SITE_URL", `(${notificationSiteUrl})`)
+                : `$EMOJI ${site.name} (${notificationSiteUrl}) $STATUS`;
+
+              await sendNotification(
+                upmsg
+                  .replace("$EMOJI", `${config.commitPrefixStatusUp || "🟩"}`)
+                  .replace(
+                    "$STATUS",
+                    `${
+                      issues.data[0].title.includes("degraded")
+                        ? "performance has improved"
+                        : "is back up"
+                    }`
+                  )
+              );
+            } catch (error) {
+              console.log(error);
+            }
+          } else {
+            console.log("Could not find a relevant issue", issues.data);
+          }
+        } else {
+          console.log("Status is the same", currentStatus, status);
+        }
+      } else {
+        console.log("Skipping commit, ", "status is", status);
+      }
+    } catch (error) {
+      console.log("ERROR", error);
+    }
+  }
+  push();
+
+  if (hasDelta) await generateSummary();
+};
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
