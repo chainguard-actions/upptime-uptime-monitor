@@ -1,0 +1,14 @@
+owner: test-owner
+repo: test-repo
+sites:
+  - name: Google
+    url: https://www.google.com
+assignees: []
+workflowSchedule:
+  updates: "0 * * * *"
+  summary: "0 * * * *"
+  graphs: "0 * * * *"
+  staticSite: "0 * * * *"
+  responseTime: "0 * * * *"
+  updateTemplate: "0 * * * *"
+  uptime: "0 * * * *"
