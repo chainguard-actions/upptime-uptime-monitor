@@ -28,6 +28,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 | v1.45.0 | [`v1.45.0`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.45.0) | [`5811f28`](https://github.com/upptime/uptime-monitor/commit/5811f280953e960b7667f0031a4d326f5f97ba99) |
 | v1.45.1 | [`v1.45.1`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.45.1) | [`e2f6bb2`](https://github.com/upptime/uptime-monitor/commit/e2f6bb2b40bd1e2d7356c0768576c7d0dc44fe64) |
 | v1.45.2 | [`v1.45.2`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.45.2) | [`0c7ff0a`](https://github.com/upptime/uptime-monitor/commit/0c7ff0afb99f9021627f3e9c6eb3b5c972ff242f) |
+| v1.46.0 | [`v1.46.0`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.46.0) | [`a284d60`](https://github.com/upptime/uptime-monitor/commit/a284d6064bcbf89db3f1e2a6c533d0e69111573b) |
 
 ## Privacy
 
