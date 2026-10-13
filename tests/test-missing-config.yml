@@ -1,0 +1,33 @@
+name: Test missing config graceful failure
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure no .upptimerc.yml exists
+        run: |
+          rm -f .upptimerc.yml
+          echo "Confirmed: no .upptimerc.yml present"
+      - id: action
+        uses: .
+        with:
+          command: update
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Assert action failed gracefully (no config file)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" = "failure" ]; then
+            echo "PASS: action failed gracefully as expected (no .upptimerc.yml)"
+          elif [ "$OUTCOME" = "success" ]; then
+            echo "FAIL: expected failure due to missing config, but action succeeded"
+            exit 1
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
