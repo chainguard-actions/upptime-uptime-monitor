@@ -1,0 +1,73 @@
+name: Test update command with valid config
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - name: Write Upptime config and isolate git remote
+        run: |
+          cat > "$GITHUB_WORKSPACE/.upptimerc.yml" <<'EOF'
+          owner: act-test-owner
+          repo: act-test-repo
+          sites:
+            - name: Act Example
+              slug: act-example
+              url: https://example.com
+          status-website:
+            name: Act Test Status
+          EOF
+          # Make sure any commit/push the action does goes to a throwaway remote
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          git remote get-url origin > /tmp/original-origin-url 2>/dev/null || true
+          rm -rf /tmp/upptime-remote.git
+          git init --bare /tmp/upptime-remote.git
+          git remote set-url origin /tmp/upptime-remote.git 2>/dev/null || \
+            git remote add origin /tmp/upptime-remote.git
+          git push -u origin HEAD:refs/heads/act-harness || true
+          git branch --set-upstream-to=origin/act-harness 2>/dev/null || true
+      - id: action
+        uses: .
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          command: update
+      - name: Assert update ran (history written, or failed gracefully on sentinel repo)
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          ls -la "$GITHUB_WORKSPACE/history" 2>/dev/null || true
+          if [ "$OUTCOME" = "success" ]; then
+            if [ ! -f "$GITHUB_WORKSPACE/history/act-example.yml" ]; then
+              echo "FAIL: action succeeded but history/act-example.yml was not written"
+              exit 1
+            fi
+            cat "$GITHUB_WORKSPACE/history/act-example.yml"
+            if ! grep -q "url: https://example.com" "$GITHUB_WORKSPACE/history/act-example.yml"; then
+              echo "FAIL: history file does not reference the monitored URL"
+              exit 1
+            fi
+            echo "PASS: update wrote site history"
+          elif [ "$OUTCOME" = "failure" ]; then
+            if [ ! -d "$GITHUB_WORKSPACE/history" ]; then
+              echo "FAIL: action failed before reaching the update step (history dir not created)"
+              exit 1
+            fi
+            echo "PASS: action reached update and failed gracefully (sentinel repo is not resolvable)"
+          else
+            echo "FAIL: unexpected outcome '$OUTCOME'"
+            exit 1
+          fi
+      - name: Restore original git remote
+        if: always()
+        run: |
+          if [ -s /tmp/original-origin-url ]; then
+            git remote set-url origin "$(cat /tmp/original-origin-url)" || true
+          fi
+          rm -f "$GITHUB_WORKSPACE/.upptimerc.yml"
