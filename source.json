@@ -1,6 +1,16 @@
 {
   "owner": "upptime",
   "repo": "uptime-monitor",
-  "version": "",
-  "url": "https://github.com/upptime/uptime-monitor"
+  "version": "v1.46.5",
+  "commit_sha": "74f0683383384927e064d76a5f21f340d6af36fc",
+  "url": "https://github.com/upptime/uptime-monitor",
+  "policy_sha": "d636be7e43ef829af6e853da6b3c7566db9f72fe",
+  "test_policy_sha": "843adf9e4b8f85d0c08b27b9d0b09dd094b54702",
+  "test_agent_version": "2",
+  "harden_agent_version": "2",
+  "node_artifact": {
+    "gcs_uri": "gs://prod-actions-node-artifacts/node-artifacts/upptime/uptime-monitor/v1.46.5/sha256-c6f125c7d866f8ef3272570ea0e9c03898b5290f3d3c5b89ccefce05514dafb0.tar.gz",
+    "sha256": "c6f125c7d866f8ef3272570ea0e9c03898b5290f3d3c5b89ccefce05514dafb0",
+    "size_bytes": 47571741
+  }
 }

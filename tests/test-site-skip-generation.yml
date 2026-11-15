@@ -1,0 +1,43 @@
+name: Test site command with skipGeneratingWebsite
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Write custom Upptime config
+        run: |
+          if [ -f "$GITHUB_WORKSPACE/.upptimerc.yml" ]; then
+            cp "$GITHUB_WORKSPACE/.upptimerc.yml" /tmp/upptimerc.backup
+          fi
+          cat > "$GITHUB_WORKSPACE/.upptimerc.yml" <<'EOF'
+          owner: act-test-owner
+          repo: act-test-repo
+          skipGeneratingWebsite: true
+          sites:
+            - name: Example
+              url: https://example.com
+          EOF
+          cat "$GITHUB_WORKSPACE/.upptimerc.yml"
+      - id: action
+        uses: .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          command: site
+      - name: Assert no site was generated
+        run: |
+          if [ -d "$GITHUB_WORKSPACE/site" ]; then
+            echo "FAIL: site directory should not be created when skipGeneratingWebsite is true"
+            exit 1
+          fi
+          echo "PASS"
+      - name: Restore config
+        if: always()
+        run: |
+          if [ -f /tmp/upptimerc.backup ]; then
+            cp /tmp/upptimerc.backup "$GITHUB_WORKSPACE/.upptimerc.yml"
+          else
+            rm -f "$GITHUB_WORKSPACE/.upptimerc.yml"
+          fi

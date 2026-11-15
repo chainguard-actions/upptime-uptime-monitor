@@ -1,0 +1,15 @@
+name: "Upptime"
+description: "Uptime monitor and status page powered entirely by GitHub"
+author: "Anand Chowdhary <https://github.com/AnandChowdhary>"
+inputs:
+  command:
+    required: true
+    description: "Command to run (see README for commands)"
+    default: "update"
+runs:
+  pre: chainguard-phonehome.js
+  using: "node24"
+  main: "dist/index.js"
+branding:
+  icon: "chevron-up"
+  color: "green"
