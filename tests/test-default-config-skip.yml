@@ -1,0 +1,38 @@
+name: Test unmodified default config skips work
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install the unmodified upstream default Upptime config
+        run: |
+          rm -rf "$GITHUB_WORKSPACE/history"
+          curl -sfL https://raw.githubusercontent.com/upptime/upptime/HEAD/.upptimerc.yml \
+            -o "$GITHUB_WORKSPACE/.upptimerc.yml"
+          test -s "$GITHUB_WORKSPACE/.upptimerc.yml"
+          head -n 5 "$GITHUB_WORKSPACE/.upptimerc.yml"
+      - id: action
+        uses: .
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          command: update
+      - name: Assert action exited early without running checks
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" != "success" ]; then
+            echo "FAIL: expected success"
+            exit 1
+          fi
+          if [ -d "$GITHUB_WORKSPACE/history" ]; then
+            echo "FAIL: history directory created although default config should skip work"
+            exit 1
+          fi
+          echo "PASS"
+      - name: Cleanup
+        if: always()
+        run: rm -rf "$GITHUB_WORKSPACE/.upptimerc.yml" "$GITHUB_WORKSPACE/history"
