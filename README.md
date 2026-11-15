@@ -33,6 +33,7 @@ Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at
 | v1.46.2 | [`v1.46.2`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.46.2) | [`9aa4499`](https://github.com/upptime/uptime-monitor/commit/9aa4499dce16aa3b144134cd767cb5a6aeb9660d) | [`HARDENING.md`](https://github.com/chainguard-actions/upptime-uptime-monitor/blob/v1.46.2/HARDENING.md) |
 | v1.46.3 | [`v1.46.3`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.46.3) | [`6d218cc`](https://github.com/upptime/uptime-monitor/commit/6d218cca63a6249035b9f3b52765ee501cf88b20) | [`HARDENING.md`](https://github.com/chainguard-actions/upptime-uptime-monitor/blob/v1.46.3/HARDENING.md) |
 | v1.46.4 | [`v1.46.4`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.46.4) | [`fefca90`](https://github.com/upptime/uptime-monitor/commit/fefca90fa2ccfc66ca39a11f40dcc90236da05ac) | [`HARDENING.md`](https://github.com/chainguard-actions/upptime-uptime-monitor/blob/v1.46.4/HARDENING.md) |
+| v1.46.5 | [`v1.46.5`](https://github.com/chainguard-actions/upptime-uptime-monitor/tree/v1.46.5) | [`74f0683`](https://github.com/upptime/uptime-monitor/commit/74f0683383384927e064d76a5f21f340d6af36fc) | [`HARDENING.md`](https://github.com/chainguard-actions/upptime-uptime-monitor/blob/v1.46.5/HARDENING.md) |
 
 ## Privacy
 
